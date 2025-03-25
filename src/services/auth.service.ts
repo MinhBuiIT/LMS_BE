@@ -148,11 +148,16 @@ export const loginService = async (body: LoginBody, res: Response) => {
 };
 
 export const logoutService = async (userId: string, res: Response) => {
+  const { refreshToken } = (await Token.findOne({ userId }).select('refreshToken')) as any;
+
+  if (!refreshToken) {
+    throw new NotFoundResponse('User not found');
+  }
   //Update refresh token in database
-  // await Token.findOneAndUpdate(
-  //   { userId },
-  //   { refreshToken: '', publicKey: '', privateKey: '', $push: { refreshTokenUsed: refreshToken } }
-  // );
+  await Token.findOneAndUpdate(
+    { userId },
+    { refreshToken: '', publicKey: '', privateKey: '', $push: { refreshTokenUsed: refreshToken } }
+  );
 
   //Clear cookies
   res.cookie('refreshToken', '', {
@@ -216,6 +221,7 @@ export const refreshTokenService = async (refreshToken: string, res: Response, c
   //Check if refresh token is used and in database
   if (token.refreshTokenUsed.includes(refreshToken) || token.refreshToken !== refreshToken) {
     redis.del(clientId);
+    await logoutService(clientId, res);
     throw new UnauthorizedResponse('Please login again');
   }
   //Generate new access token and refresh token
